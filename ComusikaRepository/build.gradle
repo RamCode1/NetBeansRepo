@@ -1,0 +1,192 @@
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+        maven {
+            url "https://repo1.maven.org/maven2/"
+        }
+    }
+    dependencies {
+        classpath "at.bxm.gradleplugins:gradle-svntools-plugin:2.2"
+        classpath "org.tmatesoft.svnkit:svnkit:1.10.1"
+    }
+}
+
+plugins {
+    id 'base'
+    id 'distribution'
+    id 'com.bmuschko.izpack' version '3.2'
+}
+
+def baseVersion = '0.1.1'
+def devVersion = 'DEV'
+def fullVersion = devVersion == '' ? baseVersion : baseVersion + ' ' + devVersion
+version = (devVersion == '' ? baseVersion : baseVersion + '-SNAPSHOT') + '-' + getDate('yyyyMMdd')
+def executableName = "comusika-studio"
+
+def getDate(dateFormat) {
+    def date = new Date()
+    def formattedDate = date.format(dateFormat)
+    return formattedDate
+}
+
+task cleanDeps {
+    if (gradle.startParameter.taskNames.contains("clean") && !project.gradle.startParameter.projectProperties.containsKey("moduleDep")) {
+        println "Deleting temporary dependency modules"
+        File depsCheckFile = rootProject.file("deps/dependency.txt")
+        if (depsCheckFile.exists()) {
+            File depsDir = rootProject.file("deps")
+            depsDir.listFiles().each() { childFile ->
+                if (childFile.isDirectory() && childFile.name != ".gradle") {
+                    project.delete(childFile)
+                }
+            }
+        } else {
+            throw new Exception('Invalid dependency path')
+        }
+    }
+}
+
+clean.dependsOn cleanDeps
+
+subprojects.each { subproject -> evaluationDependsOn(subproject.path) }
+
+task versionFile() {
+    doLast {
+        new File("$projectDir/modules/frinika-core/src/main/resources/version.properties").text = """\n\
+baseVersion = $baseVersion
+version = $fullVersion
+build-date = ${getDate('YYYY-MM-dd')}
+copyrightStart = 2004
+copyrightEnd = ${getDate('YYYY')}
+executableName = $executableName
+"""
+    }
+}
+
+assemble.dependsOn project.tasks['versionFile']
+distZip.dependsOn project(':apps').subprojects.assemble
+distZip.dependsOn project(':apps:studio-app').tasks['createExe']
+distTar.dependsOn project(':apps').subprojects.assemble
+distTar.dependsOn project(':apps:studio-app').tasks['createExe']
+
+if (file('deps/.downloaded').exists()) {
+	file('deps/.downloaded').delete()
+    // Performs another build task for new dependency handling
+    def depsLevel
+    if (project.gradle.startParameter.projectProperties.containsKey('moduleDep')) {
+        depsLevel = project.gradle.startParameter.projectProperties['moduleDep'] + 1
+    } else {
+        depsLevel = 1
+        println "Due to dependecy download(s) gradle build must be executed again after finishing"
+    }
+    def artefactBuild = project.tasks.create([name: "depsRebuild_${depsLevel}", type: GradleBuild])
+    artefactBuild.tasks = project.gradle.startParameter.taskNames
+    artefactBuild.setDependsOn(project.tasks['assemble'].dependsOn)
+
+    def artefactProjectProperties = artefactBuild.startParameter.projectProperties
+    def currentProjectProperties = project.gradle.startParameter.projectProperties
+    artefactProjectProperties << currentProjectProperties
+    artefactProjectProperties << ['moduleDep': depsLevel]
+    
+    // Terminate currently invalid tasks
+    // TODO: Fix support for other tasks like distZip
+    subprojects.each { subproject ->
+        if (subproject.tasks.findByPath('compileJava') != null) {
+            subproject.tasks['compileJava'].setEnabled(false)
+        }
+        if (subproject.tasks.findByPath('compileTestJava') != null) {
+            subproject.tasks['compileTestJava'].setEnabled(false)
+        }
+        if (subproject.tasks.findByPath('javadoc') != null) {
+            subproject.tasks['javadoc'].setEnabled(false)
+        }
+    }
+
+    assemble.dependsOn("depsRebuild_${depsLevel}")
+}
+
+if (!project.gradle.startParameter.projectProperties.containsKey("moduleDep")) {
+distributions {
+    main {
+        contents {
+            duplicatesStrategy = 'exclude'
+
+            from project.rootDir
+            include 'license.txt'
+            include 'changes.txt'
+            include 'comusika-changes.txt'
+            into('') {
+                from 'src/dist'
+                include '**'
+            }
+            into('resources') {
+                from 'apps/studio-app/resources'
+                include 'soundhelix/**'
+                include 'soundhelix-legacy/**'
+            }
+
+            from project(':apps:studio-app').projectDir.absolutePath + '/build/launch4j'
+            include executableName + ".exe"
+
+            into('lib') {
+                from 'lib'
+                include '*.txt'
+            }
+            into('lib/native') {
+                from 'lib/native'
+                include '**'
+            }
+
+            project(':modules').subprojects.each { p ->
+                p.plugins.withType(JavaPlugin) {
+                    into('lib') {
+                        from p.jar.archivePath
+                        include '*'
+                        from p.configurations.runtimeClasspath
+                        include '*'
+                    }
+                }
+            }
+            project(':apps').subprojects.each { p ->
+                p.plugins.withType(JavaPlugin) {
+                    into('lib') {
+                        from p.configurations.runtimeClasspath
+                        include '*'
+                    }
+
+                    into('') {
+                        from p.jar.archivePath
+                        include '*'
+                        rename { filename -> executableName + ".jar" }
+                    }
+                }
+            }
+            into('doc') {
+                from 'doc'
+                exclude 'dev'
+                include '**'
+            }
+            into('samples') {
+                from 'resources/samples'
+                include '**'
+            }
+        }
+    }
+}
+}
+
+//dependencies {
+//    izpack 'org.codehaus.izpack:izpack-standalone-compiler:4.3.5'
+//}
+
+izpack {
+    baseDir = file("$buildDir/distributions")
+    installFile = file('src/install-definition.xml')
+    outputFile = file("$buildDir/distributions/comusika-studio-${version}-installer.jar")
+    compression = 'deflate'
+    compressionLevel = 9
+    appProperties = ['app.group': 'comusika-studio', 'app.name': 'comusika-studio', 'app.title': 'Comusika Studio',
+                     'app.version': version, 'app.subpath': "comusika-studio-$version"]
+}
