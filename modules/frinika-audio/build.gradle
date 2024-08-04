@@ -1,0 +1,26 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Frinika audio library'
+ext.libraryDescription = 'Audio library for Frinika'
+
+apply from: '../modules.gradle'
+
+if (!hasProperty('mainClass')) {
+    ext.mainClass = ''
+}
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-audio-toot'))
+    implementation ':RasmusDSP'
+}

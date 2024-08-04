@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Frinika drum mapper audio library'
+ext.libraryDescription = 'Drum mapper audio library for Frinika'
+
+apply from: '../modules.gradle'
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-audio'))
+    implementation(project(':modules:frinika-sequencer'))
+}

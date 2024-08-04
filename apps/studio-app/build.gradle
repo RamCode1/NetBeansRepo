@@ -1,0 +1,140 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    if (!gradle.startParameter.taskNames.contains("offline")) {
+        dependencies {
+            classpath("at.bxm.gradleplugins:gradle-svntools-plugin:latest.integration")
+//            classpath("gradle.plugin.edu.sc.seis.gradle:launch4j:2.4.1")
+        }
+    }
+}
+
+plugins {
+    id 'java'
+    id 'distribution'
+    id 'maven-publish'
+    id 'edu.sc.seis.launch4j' version '2.5.4'
+}
+
+apply from: '../apps.gradle'
+
+import org.gradle.util.VersionNumber
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+version = '0.1.1-SNAPSHOT'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+if (!hasProperty('mainClass')) {
+    ext.mainClass = 'org.exbin.comusika.studio.StudioApp'
+    ext.appArgs = '-dev'
+}
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+    doFirst {
+        options.fork = true
+        if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
+            if (VersionNumber.parse(gradle.gradleVersion) >= VersionNumber.parse('5.0')) {
+                options.bootstrapClasspath = files("${System.properties['java.home']}/lib/rt.jar", "$File.pathSeparator${System.properties['java.home']}/jre/lib/jsse.jar")
+            } else {
+                options.bootClasspath = "${System.properties['java.home']}/lib/rt.jar"
+                options.bootClasspath += "$File.pathSeparator${System.properties['java.home']}/jre/lib/jsse.jar"
+            }
+        }
+    }
+}
+
+// Disable tests on build
+if (!gradle.startParameter.taskNames.any {it.endsWith("test")}) {
+    tasks.withType(Test) {enabled = false}
+}
+
+def configureExec(task) {
+    task.main = mainClass
+    task.classpath = sourceSets.main.runtimeClasspath
+    if (hasProperty('appArgs')) {
+        task.args appArgs
+    }
+}
+
+task run(type: JavaExec) {
+    task -> configureExec(task)
+}
+
+task debug(type: JavaExec) {
+    task -> configureExec(task)
+    debug = true
+}
+
+//['edu.sc.seis.launch4j'].each {
+//    apply plugin: it
+//}
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-main'))
+    implementation(project(':modules:frinika-mod'))
+    implementation(project(':modules:frinika-radio'))
+    implementation(project(':modules:frinika-view-notation'))
+    implementation(project(':modules:frinika-sequencer'))
+    implementation(project(':modules:frinika-project'))
+    implementation(project(':modules:frinika-driver-frogdisco'))
+    implementation(project(':modules:frinika-driver-jack'))
+    implementation(project(':modules:frinika-driver-osx'))
+    implementation(project(':modules:frinika-device-synthrack'))
+    implementation(project(':modules:frinika-device-rasmusdsp'))
+    implementation(project(':modules:frinika-device-opl3'))
+    implementation(project(':modules:frinika-device-debug'))
+    implementation(project(':modules:frinika-mystudio'))
+    implementation(project(':modules:frinika-audio-vorbis'))
+    implementation 'com.apple:AppleJavaExtensions:1.4'
+    implementation 'com.jgoodies:looks:2.1.4'
+    implementation 'commons-cli:commons-cli:1.2'
+    compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
+
+    runtimeOnly ':gervill'
+    runtimeOnly 'org.codehaus.groovy:groovy-all:2.0.1'
+    runtimeOnly ':jjack'
+    runtimeOnly ':JVstHost'
+    runtimeOnly ':Logging'
+    runtimeOnly ':MRJAdapter'
+    runtimeOnly 'com.apple:AppleJavaExtensions:1.4'
+    testImplementation group: 'junit', name: 'junit', version: '4.10'
+}
+
+def manifestClassPath() {
+    try {
+        return (configurations.runtimeClasspath.collect { '../lib/' + it.getName() }).join(' ')
+    } catch (Exception) {
+        return ""
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': mainClass,
+            'Class-Path': manifestClassPath()
+        )
+    }
+}
+
+launch4j {
+    outfile = "comusika-studio.exe"
+    icon = "../../../../images/frinika.ico"
+    mainClassName = mainClass
+    jar = "../../build/libs/studio-app-"+"0.1.1-SNAPSHOT"+".jar"
+    copyright = "Comusika Studio"
+}

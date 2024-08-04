@@ -1,0 +1,25 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Frinika MOD support library'
+ext.libraryDescription = 'MOD support library for Frinika'
+
+apply from: '../modules.gradle'
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-audio'))
+    implementation(project(':modules:frinika-sequencer'))
+    implementation(project(':modules:frinika-project'))
+    implementation ':RasmusDSP'
+    implementation ':jmod_0_9k'
+}

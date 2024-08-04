@@ -1,0 +1,23 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Frinika SynthRack library'
+ext.libraryDescription = 'SynthRack library for Frinika'
+
+apply from: '../modules.gradle'
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-audio'))
+    implementation ':RasmusDSP'
+    implementation group: 'javax.annotation', name: 'javax.annotation-api', version: '1.3.2'
+}

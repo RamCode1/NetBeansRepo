@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Frinika renderer library'
+ext.libraryDescription = 'Renderer library for Frinika'
+
+apply from: '../modules.gradle'
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+}

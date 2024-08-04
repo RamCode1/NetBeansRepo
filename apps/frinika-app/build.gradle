@@ -1,0 +1,151 @@
+apply plugin: 'java'
+import org.gradle.util.VersionNumber
+
+sourceCompatibility = '1.8'
+version = '0.2.0-SNAPSHOT'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+if (!hasProperty('mainClass')) {
+    ext.mainClass = 'com.frinika.FrinikaApp'
+    ext.appArgs = '-dev'
+}
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+    doFirst {
+        options.fork = true
+        if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
+            if (VersionNumber.parse(gradle.gradleVersion) >= VersionNumber.parse('5.0')) {
+                options.bootstrapClasspath = files("${System.properties['java.home']}/lib/rt.jar", "$File.pathSeparator${System.properties['java.home']}/jre/lib/jsse.jar")
+            } else {
+                options.bootClasspath = "${System.properties['java.home']}/lib/rt.jar"
+                options.bootClasspath += "$File.pathSeparator${System.properties['java.home']}/jre/lib/jsse.jar"
+            }
+        }
+    }
+}
+
+// Disable tests on build
+if (!gradle.startParameter.taskNames.any {it.endsWith("test")}) {
+    tasks.withType(Test) {enabled = false}
+}
+
+task testJar(type: Jar, dependsOn: testClasses) {
+    archiveClassifier = "tests"
+    archiveBaseName = "test-${project.archivesBaseName}"
+    from sourceSets.test.output
+}
+
+configurations {
+    tests
+}
+
+artifacts {
+    tests testJar
+}
+
+task sourceJar(type: Jar) {
+    archiveClassifier = 'sources'
+    from sourceSets.main.java
+}
+
+javadoc {
+    if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
+        options.addBooleanOption('html5', true)
+    }
+}
+
+task javadocJar (type: Jar, dependsOn: javadoc) {
+    archiveClassifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+def configureExec(task) {
+    task.main = mainClass
+    task.classpath = sourceSets.main.runtimeClasspath
+//    task.args appArgs
+}
+
+task run(type: JavaExec) {
+    task -> configureExec(task)
+}
+
+task debug(type: JavaExec) {
+    task -> configureExec(task)
+    debug = true
+}
+
+buildscript {
+    repositories {
+        mavenLocal()
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    if (!gradle.startParameter.taskNames.contains("offline")) {
+        dependencies {
+            classpath("at.bxm.gradleplugins:gradle-svntools-plugin:latest.integration")
+            classpath "gradle.plugin.edu.sc.seis.gradle:launch4j:2.4.1"
+        }
+    }
+}
+
+['edu.sc.seis.launch4j'].each {
+    apply plugin: it
+}
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-main'))
+    implementation(project(':modules:frinika-mod'))
+    implementation(project(':modules:frinika-radio'))
+    implementation(project(':modules:frinika-view-notation'))
+    implementation(project(':modules:frinika-sequencer'))
+    implementation(project(':modules:frinika-project'))
+    implementation(project(':modules:frinika-driver-frogdisco'))
+    implementation(project(':modules:frinika-driver-jack'))
+    implementation(project(':modules:frinika-driver-osx'))
+    implementation(project(':modules:frinika-device-synthrack'))
+    implementation(project(':modules:frinika-device-rasmusdsp'))
+    implementation(project(':modules:frinika-device-opl3'))
+    implementation(project(':modules:frinika-device-debug'))
+    implementation(project(':modules:frinika-mystudio'))
+    implementation(project(':modules:frinika-audio-vorbis'))
+    implementation 'com.apple:AppleJavaExtensions:1.4'
+    implementation 'com.jgoodies:looks:2.1.4'
+    compileOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
+
+    runtimeOnly ':gervill'
+    runtimeOnly 'org.codehaus.groovy:groovy-all:2.0.1'
+    runtimeOnly ':jjack'
+    runtimeOnly ':JVstHost'
+    runtimeOnly ':Logging'
+    runtimeOnly ':MRJAdapter'
+    runtimeOnly 'com.apple:AppleJavaExtensions:1.4'
+    testImplementation group: 'junit', name: 'junit', version: '4.10'
+}
+
+launch4j {
+    outfile = "frinika-studio.exe"
+    icon = "../../../../images/frinika.ico"
+    mainClassName = "com.frinika.FrinikaApp"
+    jar = "../../build/libs/frinika-app-0.1.0-SNAPSHOT.jar"
+    copyright = "Frinika Studio"
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': mainClass,
+            'Class-Path': configurations.runtimeClasspath.collect {'lib/' + it.getName() }.join(' ')
+        )
+    }
+}

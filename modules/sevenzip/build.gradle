@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'sevenzip'
+ext.libraryName = 'SevenZip library'
+ext.libraryDescription = 'SevenZip library for Frinika'
+
+apply from: '../modules.gradle'
+
+dependencies {
+}

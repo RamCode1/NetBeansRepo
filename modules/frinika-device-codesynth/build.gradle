@@ -1,0 +1,24 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.frinika'
+ext.libraryName = 'Code synth audio library'
+ext.libraryDescription = 'Code synth audio library for Frinika'
+
+apply from: '../modules.gradle'
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs "../../lib"
+    }
+}
+
+dependencies {
+    implementation(project(':modules:frinika-core'))
+    implementation(project(':modules:frinika-audio'))
+    implementation(project(':modules:frinika-audio-toot'))
+    implementation(project(':modules:frinika-device-synthrack'))
+    implementation ':RasmusDSP'
+}
